@@ -1,0 +1,20 @@
+version: "3.9"
+networks:
+  default:
+    name: "mattermost-apps-dev"
+  
+services:
+  board_sync_app:
+    image: "node:lts-gallium"
+    restart: "unless-stopped"
+    working_dir: "/app/src"
+    ports:
+      - "4000:4000"
+    environment:
+        - MATTERMOST_SITEURL=http://mattermost:8065
+        - APP_HOST=board_sync_app
+        - APP_PORT=4000
+        - ACCESS_TOKEN=${ACCESS_TOKEN}
+    volumes:
+      - "./:/app"
+    command: "bash -c 'cd ../ && npm i && npm start'"
