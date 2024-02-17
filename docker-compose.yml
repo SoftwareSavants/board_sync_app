@@ -1,11 +1,12 @@
 version: "3.9"
-networks:
-  default:
-    name: "mattermost-apps-dev"
-  
+# networks:
+#   default:
+#     name: "mattermost-apps-dev"
 services:
   board_sync_app:
     image: "node:lts-gallium"
+    networks:
+      - default
     restart: "unless-stopped"
     working_dir: "/app/src"
     ports:
@@ -18,3 +19,8 @@ services:
     volumes:
       - "./:/app"
     command: "bash -c 'cd ../ && npm i && npm start'"
+
+networks:
+  default:
+    external: true
+    name: mattermost
