@@ -1,7 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import express from 'express';
+import express, { Request, Response } from 'express';
 
 // Shim for mattermost-redux global fetch access
 global.fetch = require('node-fetch');
@@ -10,19 +10,21 @@ import { AppBinding, AppCallRequest, AppCallResponse, AppForm, AppManifest } fro
 
 
 import { Client4 } from '@mattermost/client';
-import { getBoardByName, getCardByPullRequest, getStatuses, performActionOnCard, getBoardName, getTeamId } from './helpers';
-import { Board, Card, CardAction, Status } from './types';
+import { getBoardByName, getCardByPullRequest, getStatuses, performActionOnCard, getBoardName, getTeamId } from './services';
+import { Board, Card, CardAction, Payload, Status } from './types';
+import { ErrorMiddleware, validator } from './helpers'
 
 const host = process.env.APP_HOST || 'localhost';
 const port = process.env.APP_PORT || 4000;
 
-const app = express();
+const app: express.Application = express();
 app.use(express.json());
 
 // Uncomment these lines to enable verbose debugging of requests and responses
 import logger from './middleware/logger';
 import { Post } from '@mattermost/types/posts';
 import { Channel } from '@mattermost/types/channels';
+import { HttpException } from './httpException';
 app.use(logger);
 
 app.use((req, res, next) => {
@@ -110,6 +112,8 @@ const commandBindings = {
 // Serve resources from the static folder
 app.use('/static', express.static('./static'));
 
+app.use(ErrorMiddleware)
+
 app.get('/manifest.json', (req, res) => {
     res.json(manifest);
 });
@@ -131,31 +135,37 @@ type FormValues = {
 }
 
 
-app.post('/receive-event', async (req, res) => {
-    const payload = req.body;
-    if (!Object.keys(payload).length)
-        return res.status(400).send('Missing payload');
+app.post('event-listener', validator, async (req: Request, res: Response) => {
+    try {
+        const payload: Payload = req.body;
+        if (!Object.keys(payload).length)
+            return res.status(400).send('Missing payload');
 
-    const client4 = new Client4();
-    client4.setUrl(process.env.MATTERMOST_SITEURL!);
-    client4.setToken(process.env.ACCESS_TOKEN!);
+        const client4 = new Client4();
+        client4.setUrl(process.env.MATTERMOST_SITEURL!);
+        client4.setToken(process.env.ACCESS_TOKEN!);
 
-    const repositoryName: string = payload.repository.name;
+        const repositoryName: string = payload.repository.name;
 
-    const board: Board = await getBoardByName(process.env.ACCESS_TOKEN!, getTeamId(repositoryName), getBoardName(repositoryName));
+        const board: Board = await getBoardByName(process.env.ACCESS_TOKEN!, getTeamId(repositoryName), getBoardName(repositoryName));
 
-    const statuses: Status[] = await getStatuses(process.env.ACCESS_TOKEN!, board.id);
+        const statuses: Status[] = await getStatuses(process.env.ACCESS_TOKEN!, board.id);
 
-    const card: Card = await getCardByPullRequest(process.env.ACCESS_TOKEN!, board.id, payload.pull_request.html_url);
+        const card: Card | undefined = await getCardByPullRequest(process.env.ACCESS_TOKEN!, board.id, payload.pull_request.html_url);
+        if (!card)
+            return;
 
-    if (payload.review.state !== 'approved') {
-        await performActionOnCard(process.env.ACCESS_TOKEN!, board, card, statuses, CardAction.MoveToInProgress);
-        return res.json({ message: 'Card moved to in progress' });
+        if (payload.review.state !== 'approved') {
+            await performActionOnCard(process.env.ACCESS_TOKEN!, board, card, statuses, CardAction.MoveToInProgress);
+            return res.json({ message: 'Card moved to in progress' });
+        }
+
+        await performActionOnCard(process.env.ACCESS_TOKEN!, board, card, statuses, CardAction.MoveToDone);
+
+        return res.json({ message: 'Card moved to done' });
+    } catch (e) {
+        throw new HttpException(400, "something went wrong")
     }
-
-    await performActionOnCard(process.env.ACCESS_TOKEN!, board, card, statuses, CardAction.MoveToDone);
-
-    return res.json({ message: 'Card moved to done' });
 });
 
 app.post('/submit', async (req, res) => {

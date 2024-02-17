@@ -1,3 +1,16 @@
+export interface Payload {
+    pull_request: {
+        html_url: string;
+    };
+    review: {
+        state: string;
+    };
+    repository: {
+        name: string;
+    };
+}
+
+
 export const enum CardAction {
     MoveToInProgress = 'In Progress',
     MoveToDone = 'Testing',
