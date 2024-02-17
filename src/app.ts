@@ -1,7 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import express, { Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from 'express';
 
 // Shim for mattermost-redux global fetch access
 global.fetch = require('node-fetch');
@@ -135,7 +135,7 @@ type FormValues = {
 }
 
 
-app.post('event-listener', validator, async (req: Request, res: Response) => {
+app.post('/event-listener', validator, async (req: Request, res: Response, next: NextFunction) => {
     try {
         const payload: Payload = req.body;
         if (!Object.keys(payload).length)
@@ -164,7 +164,8 @@ app.post('event-listener', validator, async (req: Request, res: Response) => {
 
         return res.json({ message: 'Card moved to done' });
     } catch (e) {
-        throw new HttpException(400, "something went wrong")
+        console.log(e)
+        next(new HttpException(400, "something went wrong"))
     }
 });
 

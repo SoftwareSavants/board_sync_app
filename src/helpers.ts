@@ -15,24 +15,28 @@ export const ErrorMiddleware = (error: HttpException, req: Request, res: Respons
 };
 
 export const validator = (req: Request, res: Response, next: NextFunction) => {
+    try {
 
-    const payloadSchema = z.object({
-        action: z.string(),
-        pull_request: z.object({
-            html_url: z.string(),
-        }),
-        review: z.object({
-            state: z.string(),
-        }),
-        repository: z.object({
-            name: z.string(),
+        const payloadSchema = z.object({
+            action: z.string(),
+            pull_request: z.object({
+                html_url: z.string(),
+            }),
+            review: z.object({
+                state: z.string(),
+            }),
+            repository: z.object({
+                name: z.string(),
+            })
+
         })
 
-    })
+        const validationResult = payloadSchema.safeParse(req.body)
 
-    const validationResult = payloadSchema.safeParse(req.body)
-
-    if (!validationResult.success)
-        throw new HttpException(400, "Bad request body")
-    next()
+        if (!validationResult.success)
+            throw new HttpException(400, "Bad request body")
+        next()
+    } catch (e) {
+        next(e)
+    }
 } 
